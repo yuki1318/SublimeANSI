@@ -189,12 +189,20 @@ class AnsiCommand(sublime_plugin.TextCommand):
         view = self.view
 
         # removing unsupported ansi escape codes before going forward: 2m 4m 5m 7m 8m
-        # ansi_unsupported_codes = fast_view_find_all(view, r'\x1b\[(0;)?[24578]m')
-        # for r in reversed(ansi_unsupported_codes):
-        #     view.replace(edit, r, '\x1b[1m')
+        ansi_unsupported_codes = fast_view_find_all(view, r'\x1b\[(0;)?[24578]m')
+        for r in reversed(ansi_unsupported_codes):
+            view.replace(edit, r, '\x1b[1m')
+
+        # '\x1b\[K'を削除
         ansi_unsupported_codes = fast_view_find_all(view, r'\x1b\[K')
         for r in reversed(ansi_unsupported_codes):
             view.replace(edit, r, '')
+
+        # '\x1b\[FG;BGm'→'\x1b\[FGm\x1b\[BGm'に変換する
+        ansicodes = fast_view_find_all(view, r'\x1b\[3[01234567];4[01234657]m')
+        for r in reversed(ansicodes):
+            conv = view.substr(r).replace(';', 'm\x1b[')
+            view.replace(edit, r, conv)
 
         # collect ansi regions
         ansi_regions = {

@@ -1,14 +1,5 @@
 {
   "ANSI_FG": [
-      {"scope": "black_on_bg", "code": "\\x1b\\[30;4[01234567]m", "color": "#686868"},
-      {"scope": "red_on_bg", "code": "\\x1b\\[31;4[01234567]m", "color": "#ff6f6b"},
-      {"scope": "green_on_bg", "code": "\\x1b\\[32;4[01234567]m", "color": "#67f86f"},
-      {"scope": "yellow_on_bg", "code": "\\x1b\\[33;4[01234567]m", "color": "#fffa72"},
-      {"scope": "blue_on_bg", "code": "\\x1b\\[34;4[01234567]m", "color": "#6a76fc"},
-      {"scope": "magenta_on_bg", "code": "\\x1b\\[35;4[01234567]m", "color": "#ff7cfd"},
-      {"scope": "cyan_on_bg", "code": "\\x1b\\[36;4[01234567]m", "color": "#68fdfe"},
-      {"scope": "white_on_bg", "code": "\\x1b\\[37;4[01234567]m", "color": "#ffffff"},
-
       {"scope": "black", "code": "\\x1b\\[(0{,2};)?30m", "color": "#000000"},
       {"scope": "black_light", "code": "\\x1b\\[1;30m", "color": "#686868"},
       {"scope": "black_bright", "code": "\\x1b\\[90m", "color": "#686868"},
@@ -36,16 +27,7 @@
       {"scope": "_bold", "code": "\\x1b\\[(0{,2};)?1m", "color": "#ffffff", "font_style": "bold"},
   ],
   "ANSI_BG": [
-      {"scope": "_bg_black", "code": "\\x1b\\[3[01234567];40m", "color": "#2d2d2d"},
-      {"scope": "_bg_red_under_fg", "code": "\\x1b\\[3[01234567];41m", "color": "#c71e12"},
-      {"scope": "_bg_green_under_fg", "code": "\\x1b\\[3[01234567];42m", "color": "#00c120"},
-      {"scope": "_bg_yellow_under_fg", "code": "\\x1b\\[3[01234567];43m", "color": "#c7c327"},
-      {"scope": "_bg_blue_under_fg", "code": "\\x1b\\[3[01234567];44m", "color": "#0a2fc4"},
-      {"scope": "_bg_magenta_under_fg", "code": "\\x1b\\[3[01234567];45m", "color": "#c839c5"},
-      {"scope": "_bg_cyan_under_fg", "code": "\\x1b\\[3[01234567];46m", "color": "#01c5c6"},
-      {"scope": "_bg_white_under_fg", "code": "\\x1b\\[3[01234567];47m", "color": "#c7c7c7"},
-
-      {"scope": "", "code": "(?<!\\x1b\\[0;4[01234567]m)(?<!\\x1b\\[4[01234567]m)", "color": "#010000"},
+      {"scope": "", "code": "(?<!\\x1b\\[0;4[01234567]m)(?<!\\x1b\\[4[01234567]m)", "color": "#2e2d2d"},
       {"scope": "_bg_black", "code": "\\x1b\\[(0{,2};)?40m", "color": "#2d2d2d"},
       {"scope": "_bg_black_bright", "code": "\\x1b\\[(0{,2};)?100m", "color": "#686868"},
       {"scope": "_bg_red", "code": "\\x1b\\[(0{,2};)?41m", "color": "#c71e12"},
