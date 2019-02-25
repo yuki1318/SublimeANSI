@@ -154,7 +154,7 @@ class AnsiCommand(sublime_plugin.TextCommand):
 
         view.settings().set("ansi_enabled", True)
         view.settings().set("color_scheme", "Packages/User/ANSIescape/ansi.tmTheme")
-        view.settings().set("draw_white_space", "none")
+        # view.settings().set("draw_white_space", "none")
 
         # save the view's original scratch and read only settings
         if not view.settings().has("ansi_scratch"):
@@ -189,9 +189,12 @@ class AnsiCommand(sublime_plugin.TextCommand):
         view = self.view
 
         # removing unsupported ansi escape codes before going forward: 2m 4m 5m 7m 8m
-        ansi_unsupported_codes = fast_view_find_all(view, r'\x1b\[(0;)?[24578]m')
+        # ansi_unsupported_codes = fast_view_find_all(view, r'\x1b\[(0;)?[24578]m')
+        # for r in reversed(ansi_unsupported_codes):
+        #     view.replace(edit, r, '\x1b[1m')
+        ansi_unsupported_codes = fast_view_find_all(view, r'\x1b\[K')
         for r in reversed(ansi_unsupported_codes):
-            view.replace(edit, r, '\x1b[1m')
+            view.replace(edit, r, '')
 
         # collect ansi regions
         ansi_regions = {
