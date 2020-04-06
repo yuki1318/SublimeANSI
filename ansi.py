@@ -137,6 +137,14 @@ class AnsiRegion(object):
         else:
             return p - (end - begin)
 
+class CopyAnsiCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        copy_str_list = []
+        for region in self.view.sel():
+            copy_str_list.append( self.view.substr(region) )
+
+        out_str = '\r\n\r\n'.join(copy_str_list)
+        sublime.set_clipboard(out_str)
 
 class AnsiCommand(sublime_plugin.TextCommand):
 
@@ -279,6 +287,18 @@ class UndoAnsiCommand(sublime_plugin.WindowCommand):
 
 
 class AnsiEventListener(sublime_plugin.EventListener):
+
+    def on_text_command(self, view, command_name, args):
+        flg = (
+            (command_name == 'copy' or command_name == 'cut') and
+            'ANSI' in view.settings().get('syntax')
+        )
+        # print('on CopyAnsiCommand is', flg)
+        # print('Syntax is', view.settings().get('syntax'))
+        if flg:
+            return ('copy_ansi', args)
+        else:
+            return None
 
     def on_new_async(self, view):
         self.process_view_open(view)
