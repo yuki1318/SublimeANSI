@@ -5,6 +5,7 @@ from functools import partial
 import bisect
 import Default
 import inspect
+import json
 import os
 import re
 import sublime
@@ -30,14 +31,35 @@ def debug(view, msg):
         name = "not named"
     msg = re.sub(r'\n', "\n\t", msg)
 
-    print("File: \"{path}\", line {lineno}, window: {window_id}, view: {view_id}, file: {name}\n\t{msg}".format_map({
-        'lineno': info.lineno,
-        'msg': msg,
-        'name': name,
-        'path': filepath,
-        'view_id': view.id(),
-        'window_id': view.window().id(),
-    }))
+    print(
+        'File: "{path}", line {lineno}, window: {window_id}, view: {view_id}, file: {name}\n\t{msg}'.format_map(
+            {
+                "lineno": info.lineno,
+                "msg": msg,
+                "name": name,
+                "path": filepath,
+                "view_id": view.id(),
+                "window_id": view.window().id(),
+            }
+        )
+    )
+
+
+def snake_to_camel(snake: str, upper_first: bool = False) -> str:
+    # title-cased words
+    words = [word.title() for word in snake.split("_")]
+
+    if words and not upper_first:
+        words[0] = words[0].lower()
+
+    return "".join(words)
+
+
+def camel_to_snake(camel: str) -> str:
+    # first upper-cased camel
+    camel = camel[0].upper() + camel[1:]
+
+    return "_".join(re.findall(r"[A-Z][^A-Z]*", camel)).lower()
 
 
 def get_regex_obj(regex_string):
@@ -76,6 +98,15 @@ def fast_view_find_all(view, regex_string):
     return [sublime.Region(*(m.span())) for m in iterator]
 
 
+def is_ansi_syntax(view):
+    syntax = view.settings().get("syntax")
+
+    if not syntax:
+        return False
+
+    return syntax.startswith("Packages/ANSIescape/ANSI.")
+
+
 def ansi_definitions(content=None):
 
     settings = sublime.load_settings("ansi.sublime-settings")
@@ -94,13 +125,21 @@ def ansi_definitions(content=None):
         )
 
         # filter out unnecessary colors in user settings
-        bgs = [v for v in settings.get('ANSI_BG', []) if get_regex_obj(v['code']).search(color_str) is not None]
-        fgs = [v for v in settings.get('ANSI_FG', []) if get_regex_obj(v['code']).search(color_str) is not None]
+        bgs = [
+            v
+            for v in settings.get("ANSI_BG", [])
+            if get_regex_obj(v["code"]).search(color_str) is not None
+        ]
+        fgs = [
+            v
+            for v in settings.get("ANSI_FG", [])
+            if get_regex_obj(v["code"]).search(color_str) is not None
+        ]
 
     for bg in bgs:
         for fg in fgs:
-            regex = r'(?:{0}{1}|{1}{0})[^\x1b]*'.format(fg['code'], bg['code'])
-            scope = "{0}{1}".format(fg['scope'], bg['scope'])
+            regex = r"(?:{0}{1}|{1}{0})[^\x1b]*".format(fg["code"], bg["code"])
+            scope = "{0}{1}".format(fg["scope"], bg["scope"])
             yield AnsiDefinition(scope, regex)
 
 
@@ -157,8 +196,8 @@ class AnsiCommand(sublime_plugin.TextCommand):
 
         # if the syntax has not already been changed to ansi this means the command has
         # been run via the sublime console therefore the syntax must be changed manually
-        if view.settings().get("syntax") != "Packages/ANSIescape/ANSI.tmLanguage":
-            view.settings().set("syntax", "Packages/ANSIescape/ANSI.tmLanguage")
+        if not is_ansi_syntax(view):
+            view.settings().set("syntax", "Packages/ANSIescape/ANSI.sublime-syntax")
 
         view.settings().set("ansi_enabled", True)
         view.settings().set("color_scheme", "Packages/User/ANSIescape/ansi.tmTheme")
@@ -191,7 +230,9 @@ class AnsiCommand(sublime_plugin.TextCommand):
             for a, b in regions_points:
                 regions.append(sublime.Region(a, b))
             sum_regions = view.get_regions(scope) + regions
-            view.add_regions(scope, sum_regions, scope, '', sublime.DRAW_NO_OUTLINE | sublime.PERSISTENT)
+            view.add_regions(
+                scope, sum_regions, scope, "", sublime.DRAW_NO_OUTLINE | sublime.PERSISTENT
+            )
 
     def _colorize_ansi_codes(self, edit):
         view = self.view
@@ -220,31 +261,39 @@ class AnsiCommand(sublime_plugin.TextCommand):
         for ansi in ansi_definitions(content):
             regions = fast_view_find_all(view, ansi.regex)
             if regions:
-                debug(view, "scope: {}\nregex: {}\nregions: {}\n----------\n".format(ansi.scope, ansi.regex, ansi_regions))
+                debug(
+                    view,
+                    "scope: {}\nregex: {}\nregions: {}\n----------\n".format(
+                        ansi.scope, ansi.regex, ansi_regions
+                    ),
+                )
                 ansi_regions[ansi.scope] = regions
 
         # removing ansi escaped codes
-        ansi_codes = fast_view_find_all(view, r'\x1b\[[0-9;]*m')
+        ansi_codes = fast_view_find_all(view, r"\x1b\[[0-9;]*m")
         for r in reversed(ansi_codes):
             view.erase(edit, r)
 
         # build offset correction tables
-        correction_tables = {
-            'points': [0],
-            'offsets': [0],
-        }
+        correction_tables = {"points": [0], "offsets": [0]}
         for r in ansi_codes:
-            correction_tables['points'].append(r.end())
-            correction_tables['offsets'].append(r.size() + correction_tables['offsets'][-1])
+            correction_tables["points"].append(r.end())
+            correction_tables["offsets"].append(r.size() + correction_tables["offsets"][-1])
 
         # apply offset correction to ansi regions
         for scope, regions in ansi_regions.items():
             for r in regions:
-                r.a -= correction_tables['offsets'][bisect.bisect(correction_tables['points'], r.a) - 1]
-                r.b -= correction_tables['offsets'][bisect.bisect(correction_tables['points'], r.b) - 1]
+                r.a -= correction_tables["offsets"][
+                    bisect.bisect(correction_tables["points"], r.a) - 1
+                ]
+                r.b -= correction_tables["offsets"][
+                    bisect.bisect(correction_tables["points"], r.b) - 1
+                ]
             # render corrected ansi regions
             sum_regions = view.get_regions(scope) + regions
-            view.add_regions(scope, sum_regions, scope, '', sublime.DRAW_NO_OUTLINE | sublime.PERSISTENT)
+            view.add_regions(
+                scope, sum_regions, scope, "", sublime.DRAW_NO_OUTLINE | sublime.PERSISTENT
+            )
 
     def _remove_ansi_regions(self):
         view = self.view
@@ -265,8 +314,8 @@ class UndoAnsiCommand(sublime_plugin.WindowCommand):
 
         # if the syntax has not already been changed from ansi this means the command has
         # been run via the sublime console therefore the syntax must be changed manually
-        if view.settings().get("syntax") == "Packages/ANSIescape/ANSI.tmLanguage":
-            view.settings().set("syntax", "Packages/Text/Plain text.tmLanguage")
+        if is_ansi_syntax(view):
+            view.settings().set("syntax", "Packages/Text/Plain text.sublime-syntax")
 
         view.settings().erase("ansi_enabled")
         view.settings().erase("color_scheme")
@@ -312,12 +361,12 @@ class AnsiEventListener(sublime_plugin.EventListener):
     def process_view_open(self, view):
         self._del_event_listeners(view)
         self._add_event_listeners(view)
-        if view.settings().get("syntax") == "Packages/ANSIescape/ANSI.tmLanguage":
+        if is_ansi_syntax(view):
             view.run_command("ansi")
 
     def process_view_close(self, view):
         self._del_event_listeners(view)
-        #if view.settings().get("syntax") == "Packages/ANSIescape/ANSI.tmLanguage":
+        # if view.settings().get("syntax") == "Packages/ANSIescape/ANSI.sublime-syntax":
         #    view.window().run_command("undo_ansi") ** this needs to be tested **
 
     def detect_left_ansi(self, view):
@@ -327,7 +376,7 @@ class AnsiEventListener(sublime_plugin.EventListener):
         if not self._is_view_valid(view):
             self._del_event_listeners(view)
             return
-        if view.settings().get("syntax") != "Packages/ANSIescape/ANSI.tmLanguage":
+        if not is_ansi_syntax(view):
             return
         if view.settings().get("ansi_in_progress", False):
             debug(view, "ansi in progress")
@@ -344,7 +393,7 @@ class AnsiEventListener(sublime_plugin.EventListener):
             return
         if view.settings().get("ansi_in_progress", False):
             return
-        if view.settings().get("syntax") == "Packages/ANSIescape/ANSI.tmLanguage":
+        if is_ansi_syntax(view):
             if not view.settings().has("ansi_enabled"):
                 debug(view, "Syntax change detected (running ansi command).")
                 view.run_command("ansi", args={"clear_before": True})
@@ -363,7 +412,9 @@ class AnsiEventListener(sublime_plugin.EventListener):
         return True
 
     def _add_event_listeners(self, view):
-        view.settings().add_on_change("CHECK_FOR_ANSI_SYNTAX", lambda: self.detect_syntax_change(view))
+        view.settings().add_on_change(
+            "CHECK_FOR_ANSI_SYNTAX", lambda: self.detect_syntax_change(view)
+        )
         view.settings().add_on_change("CHECK_FOR_LEFT_ANSI", lambda: self.detect_left_ansi(view))
         debug(view, "ANSIescape event listeners assigned to view.")
 
@@ -377,9 +428,6 @@ class AnsiColorBuildCommand(Default.exec.ExecCommand):
 
     process_trigger = "on_finish"
 
-    # note that ST dev 3169 is identical to ST stable 3170
-    need_string_codec = int(sublime.version()) < 3169
-
     @classmethod
     def update_build_settings(self, settings):
         val = settings.get("ANSI_process_trigger", "on_finish")
@@ -387,31 +435,23 @@ class AnsiColorBuildCommand(Default.exec.ExecCommand):
             self.process_trigger = val
         else:
             self.process_trigger = None
-            sublime.error_message("ANSIescape settings warning:\n\nThe setting ANSI_process_trigger has been set to an invalid value; must be one of 'on_finish' or 'on_data'.")
+            sublime.error_message(
+                "ANSIescape settings warning:\n\nThe setting ANSI_process_trigger has been set to an invalid value; must be one of 'on_finish' or 'on_data'."
+            )
 
     @classmethod
     def clear_build_settings(self, settings):
         self.process_trigger = None
 
-    def auto_string_codec(self, string, encode_or_decode, encoding='UTF-8'):
-        assert encode_or_decode == 'encode' or encode_or_decode == 'decode', '`encode_or_decode` must be either "encode" or "decode"'
-
-        if not self.need_string_codec:
-            return string
-
-        return getattr(string, encode_or_decode)(encoding)
-
     def on_data_process(self, proc, data):
         view = self.output_view
-        if not view.settings().get("syntax") == "Packages/ANSIescape/ANSI.tmLanguage":
+        if not is_ansi_syntax(view):
             super(AnsiColorBuildCommand, self).on_data(proc, data)
             return
 
-        str_data = self.auto_string_codec(data, 'decode', self.encoding)
-
         # replace unsupported ansi escape codes before going forward: 2m 4m 5m 7m 8m
-        unsupported_pattern = r'\x1b\[(0;)?[24578]m'
-        str_data = re.sub(unsupported_pattern, "\x1b[1m", str_data)
+        unsupported_pattern = r"\x1b\[(0;)?[24578]m"
+        str_data = re.sub(unsupported_pattern, "\x1b[1m", data)
 
         # find all regions
         ansi_regions = []
@@ -424,7 +464,7 @@ class AnsiColorBuildCommand(Default.exec.ExecCommand):
                 ansi_regions.append(new_region)
 
         # remove codes
-        remove_pattern = r'(\x1b\[[0-9;]*m)+'
+        remove_pattern = r"(\x1b\[[0-9;]*m)+"
         ansi_codes = re.finditer(remove_pattern, str_data)
         ansi_codes = list(ansi_codes)
         ansi_codes.reverse()
@@ -433,8 +473,6 @@ class AnsiColorBuildCommand(Default.exec.ExecCommand):
             for r in ansi_regions:
                 r.cut_area(*to_remove)
         out_data = re.sub(remove_pattern, "", str_data)
-
-        out_data = self.auto_string_codec(out_data, 'encode', self.encoding)
 
         # send on_data without ansi codes
         super(AnsiColorBuildCommand, self).on_data(proc, out_data)
@@ -463,40 +501,34 @@ class AnsiColorBuildCommand(Default.exec.ExecCommand):
                 view.run_command("ansi", args={"clear_before": True})
 
 
-CS_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>name</key><string>Ansi</string>
-<key>settings</key><array><dict><key>settings</key><dict>
-<key>background</key><string>%s</string>
-<key>caret</key><string>%s</string>
-<key>foreground</key><string>%s</string>
-<key>gutter</key><string>%s</string>
-<key>gutterForeground</key><string>%s</string>
-<key>invisibles</key><string>%s</string>
-<key>lineHighlight</key><string>%s</string>
-<key>selection</key><string>%s</string>
-</dict></dict>
-%s</array></dict></plist>
-"""
-
-ANSI_SCOPE = "<dict><key>scope</key><string>{0}{1}</string><key>settings</key><dict><key>background</key><string>{2}</string><key>foreground</key><string>{3}</string>{4}</dict></dict>\n"
-
-
 def generate_color_scheme(cs_file, settings):
     print("Regenerating ANSI color scheme...")
-    cs_scopes = ""
+
+    theme = {
+        "name": "Ansi",
+        "author": "Auto-generated by ANSIescape plugin",
+        "globals": {camel_to_snake(k): v for k, v in settings.get("GENERAL").items()},
+        "rules": [],
+    }
+
+
     for bg in settings.get("ANSI_BG", []):
         for fg in settings.get("ANSI_FG", []):
-            if (bg.get('font_style') and bg['font_style'] == 'bold') or (fg.get('font_style') and fg['font_style'] == 'bold'):
-                font_style = "<key>fontStyle</key><string>bold</string>"
-            else:
-                font_style = ''
-            cs_scopes += ANSI_SCOPE.format(fg['scope'], bg['scope'], bg['color'], fg['color'], font_style)
-    g = settings.get("GENERAL")
-    vals = [g['background'], g['caret'], g['foreground'], g['gutter'], g['gutterForeground'], g['invisibles'], g['lineHighlight'], g['selection'], cs_scopes]
-    theme = CS_TEMPLATE % tuple(vals)
-    with open(cs_file, 'w') as color_scheme:
-        color_scheme.write(theme)
+            rule = {
+                "scope": fg["scope"] + bg["scope"],
+                "background": bg["color"],
+                "foreground": fg["color"],
+            }
+
+            if (bg.get("font_style") and bg["font_style"] == "bold") or (
+                fg.get("font_style") and fg["font_style"] == "bold"
+            ):
+                rule["font_style"] = "bold"
+
+            theme["rules"].append(rule)
+
+    with open(cs_file, "w") as color_scheme:
+        color_scheme.write(json.dumps(theme, sort_keys=True, indent=4))
 
 
 def plugin_loaded():
@@ -507,13 +539,15 @@ def plugin_loaded():
     if not os.path.exists(ansi_cs_dir):
         os.makedirs(ansi_cs_dir)
     # create ansi color scheme file
-    cs_file = os.path.join(ansi_cs_dir, "ansi.tmTheme")
+    cs_file = os.path.join(ansi_cs_dir, "ansi.sublime-color-scheme")
     if not os.path.isfile(cs_file):
         generate_color_scheme(cs_file, settings)
     # update the settings for the plugin
     AnsiColorBuildCommand.update_build_settings(settings)
     settings.add_on_change("ANSI_COLORS_CHANGE", lambda: generate_color_scheme(cs_file, settings))
-    settings.add_on_change("ANSI_TRIGGER_CHANGE", lambda: AnsiColorBuildCommand.update_build_settings(settings))
+    settings.add_on_change(
+        "ANSI_TRIGGER_CHANGE", lambda: AnsiColorBuildCommand.update_build_settings(settings)
+    )
     # update the setting for each view
     for window in sublime.windows():
         for view in window.views():
