@@ -2,11 +2,11 @@
 	{
 		"keys": ["ctrl+c"],
 		"command": "copy_ansi",
-		"context": [{"key": "ansi"}],
+		"context": [{"key": "ansi"}]
 	},
 	{
 		"keys": ["ctrl+x"],
 		"command": "copy_ansi",
-		"context": [{"key": "ansi"}],
+		"context": [{"key": "ansi"}]
 	}
 ]
